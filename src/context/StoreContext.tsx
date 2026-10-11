@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Product, Category, StoreSettings, FilterState, PageType, PolicyTab } from '../types';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { Product, Category, StoreSettings, FilterState, PageType, PolicyTab, CustomerUser } from '../types';
+import { recordCustomerLoginInSupabase, getSupabaseClient } from '../utils/supabase';
 
 interface Toast {
   id: string;
@@ -45,6 +46,25 @@ interface StoreContextType {
   updateSettings: (newSettings: Partial<StoreSettings>) => Promise<boolean>;
   uploadImage: (base64Data: string, filename: string) => Promise<string | null>;
   refreshData: () => Promise<void>;
+  // Wishlist
+  wishlistIds: string[];
+  wishlistCount: number;
+  isInWishlist: (productId: string) => boolean;
+  toggleWishlist: (productId: string) => void;
+  removeFromWishlist: (productId: string) => void;
+  clearWishlist: () => void;
+  // Customer Authentication (Google + Supabase)
+  customerUser: CustomerUser | null;
+  isCustomerLoggedIn: boolean;
+  intendedPage: PageType;
+  setIntendedPage: (page: PageType) => void;
+  loginCustomerWithGoogle: (profile: {
+    email: string;
+    name?: string;
+    avatarUrl?: string;
+    id?: string;
+  }) => Promise<{ success: boolean; message: string }>;
+  logoutCustomer: () => Promise<void>;
 }
 
 const defaultSettings: StoreSettings = {
@@ -94,14 +114,49 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Navigation state
-  const [currentPage, setCurrentPage] = useState<PageType>('home');
-  const [currentProductId, setCurrentProductId] = useState<string | null>(null);
-  const [currentCategorySlug, setCurrentCategorySlug] = useState<string | null>(null);
-  const [policyTab, setPolicyTab] = useState<PolicyTab>('privacy');
+  // Navigation state initialized directly from URL
+  const [currentPage, setCurrentPage] = useState<PageType>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return (params.get('page') as PageType) || 'home';
+    } catch {
+      return 'home';
+    }
+  });
 
-  // Filters state
-  const [filters, setFilters] = useState<FilterState>(initialFilters);
+  const [currentProductId, setCurrentProductId] = useState<string | null>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('product') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [currentCategorySlug, setCurrentCategorySlug] = useState<string | null>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('category') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [policyTab, setPolicyTab] = useState<PolicyTab>(() => {
+    try {
+      return (new URLSearchParams(window.location.search).get('tab') as PolicyTab) || 'privacy';
+    } catch {
+      return 'privacy';
+    }
+  });
+
+  // Filters state initialized from URL category if present
+  const [filters, setFilters] = useState<FilterState>(() => {
+    try {
+      const cat = new URLSearchParams(window.location.search).get('category');
+      return cat ? { ...initialFilters, categoryId: cat } : initialFilters;
+    } catch {
+      return initialFilters;
+    }
+  });
 
   // Toasts
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -112,6 +167,74 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   });
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
+  // Wishlist state (stored locally in localStorage)
+  const [wishlistIds, setWishlistIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('siri_wishlist');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to parse wishlist from localStorage', e);
+    }
+    return [];
+  });
+
+  // Sync wishlist to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('siri_wishlist', JSON.stringify(wishlistIds));
+    } catch (e) {
+      console.warn('Failed to save wishlist to localStorage', e);
+    }
+  }, [wishlistIds]);
+
+  // Customer Authentication state (Google + Supabase)
+  const [customerUser, setCustomerUser] = useState<CustomerUser | null>(() => {
+    try {
+      const saved = localStorage.getItem('siri_customer_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [intendedPage, setIntendedPage] = useState<PageType>(() => {
+    try {
+      const p = new URLSearchParams(window.location.search).get('page') as PageType;
+      if (p && p !== 'login' && p !== 'account' && p !== 'admin-login' && p !== 'admin-dashboard') {
+        return p;
+      }
+    } catch {}
+    return 'home';
+  });
+
+  const [intendedParams, setIntendedParams] = useState<
+    { productId?: string; categorySlug?: string; policyTab?: PolicyTab } | undefined
+  >(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const prodId = params.get('product') || undefined;
+      const cat = params.get('category') || undefined;
+      const tab = (params.get('tab') as PolicyTab) || undefined;
+      if (prodId || cat || tab) {
+        return { productId: prodId, categorySlug: cat, policyTab: tab };
+      }
+    } catch {}
+    return undefined;
+  });
+
+  // Keep references so callbacks and listeners don't require them as dependencies
+  const customerUserRef = useRef<CustomerUser | null>(customerUser);
+  customerUserRef.current = customerUser;
+
+  const intendedPageRef = useRef<PageType>(intendedPage);
+  intendedPageRef.current = intendedPage;
+
+  const intendedParamsRef = useRef(intendedParams);
+  intendedParamsRef.current = intendedParams;
+
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
     setToasts((prev) => [...prev, { id, message, type }]);
@@ -120,18 +243,188 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }, 4500);
   }, []);
 
+  const isInWishlist = useCallback(
+    (productId: string) => wishlistIds.includes(productId),
+    [wishlistIds]
+  );
+
+  const toggleWishlist = useCallback(
+    (productId: string) => {
+      setWishlistIds((prev) => {
+        const exists = prev.includes(productId);
+        if (exists) {
+          showToast('Removed from your Wishlist', 'info');
+          return prev.filter((id) => id !== productId);
+        } else {
+          showToast('Saved to your Wishlist ❤️', 'success');
+          return [...prev, productId];
+        }
+      });
+    },
+    [showToast]
+  );
+
+  const removeFromWishlist = useCallback(
+    (productId: string) => {
+      setWishlistIds((prev) => {
+        if (!prev.includes(productId)) return prev;
+        showToast('Removed from your Wishlist', 'info');
+        return prev.filter((id) => id !== productId);
+      });
+    },
+    [showToast]
+  );
+
+  const clearWishlist = useCallback(() => {
+    setWishlistIds([]);
+    showToast('Wishlist cleared', 'info');
+  }, [showToast]);
+
+  const navigateTo = useCallback(
+    (
+      page: PageType,
+      params?: { productId?: string; categorySlug?: string; policyTab?: PolicyTab }
+    ) => {
+      // If customer is not authenticated and attempts to visit a protected shopping page,
+      // remember their intended page so they return to it immediately upon Google sign-in
+      if (
+        !customerUserRef.current &&
+        page !== 'login' &&
+        page !== 'account' &&
+        page !== 'admin-login' &&
+        page !== 'admin-dashboard'
+      ) {
+        setIntendedPage(page);
+        setIntendedParams(params);
+      }
+
+      setCurrentPage(page);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      const url = new URL(window.location.href);
+      url.searchParams.set('page', page);
+
+      if (params?.productId) {
+        setCurrentProductId(params.productId);
+        url.searchParams.set('product', params.productId);
+      } else {
+        url.searchParams.delete('product');
+      }
+
+      if (params?.categorySlug) {
+        setCurrentCategorySlug(params.categorySlug);
+        url.searchParams.set('category', params.categorySlug);
+        setFilters((prev) => ({ ...prev, categoryId: params.categorySlug || '' }));
+      } else if (page !== 'products') {
+        url.searchParams.delete('category');
+      }
+
+      if (params?.policyTab) {
+        setPolicyTab(params.policyTab);
+        url.searchParams.set('tab', params.policyTab);
+      } else {
+        url.searchParams.delete('tab');
+      }
+
+      window.history.pushState({}, '', url.toString());
+    },
+    []
+  );
+
+  // Customer Login with Google and Supabase Storage
+  const loginCustomerWithGoogle = useCallback(
+    async (profile: { email: string; name?: string; avatarUrl?: string; id?: string }) => {
+      const cleanEmail = profile.email.toLowerCase().trim();
+      const fallbackName = cleanEmail.split('@')[0];
+      const name = profile.name || (fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1));
+      const id = profile.id || `google_${cleanEmail.replace(/[^a-z0-9]/g, '_')}`;
+      const avatarUrl =
+        profile.avatarUrl ||
+        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=059669,047857`;
+
+      const prevCount = customerUserRef.current?.email === cleanEmail ? (customerUserRef.current.loginCount || 1) + 1 : 1;
+      const userRecord: CustomerUser = {
+        id,
+        email: cleanEmail,
+        name,
+        avatarUrl,
+        provider: 'google',
+        lastSignInAt: new Date().toISOString(),
+        loginCount: prevCount,
+      };
+
+      try {
+        // 1. Persist to server database (Node.js/Express)
+        await fetch('/api/customer/login-google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userRecord),
+        }).catch((err) => console.warn('Server sync note:', err));
+
+        // 2. Persist to Supabase database (free tier)
+        const sbRes = await recordCustomerLoginInSupabase(userRecord);
+
+        // 3. Save locally in localStorage for persistent session
+        localStorage.setItem('siri_customer_user', JSON.stringify(userRecord));
+        customerUserRef.current = userRecord;
+        setCustomerUser(userRecord);
+
+        showToast(`Welcome back, ${name}! Signed in with Google`, 'success');
+
+        // Redirect to intended page or home
+        const destPage =
+          intendedPageRef.current && intendedPageRef.current !== 'login'
+            ? intendedPageRef.current
+            : 'home';
+        const destParams = intendedParamsRef.current;
+        setIntendedPage('home');
+        setIntendedParams(undefined);
+        navigateTo(destPage, destParams);
+
+        return { success: true, message: 'Signed in with Google successfully' };
+      } catch (err: any) {
+        console.error('Customer login error:', err);
+        showToast('Login notice: ' + (err?.message || 'Authentication in progress'), 'error');
+        return { success: false, message: err?.message || 'Login failed' };
+      }
+    },
+    [navigateTo, showToast]
+  );
+
+  const loginCustomerWithGoogleRef = useRef(loginCustomerWithGoogle);
+  loginCustomerWithGoogleRef.current = loginCustomerWithGoogle;
+
+  const logoutCustomer = useCallback(async () => {
+    localStorage.removeItem('siri_customer_user');
+    customerUserRef.current = null;
+    setCustomerUser(null);
+    setIntendedPage('home');
+    setIntendedParams(undefined);
+    const sbClient = getSupabaseClient();
+    if (sbClient) {
+      try {
+        await sbClient.auth.signOut();
+      } catch (e) {
+        console.warn('Supabase signOut note:', e);
+      }
+    }
+    showToast('Signed out of Google account', 'info');
+    navigateTo('login');
+  }, [navigateTo, showToast]);
+
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // Fetch initial data
-  const fetchData = useCallback(async () => {
+  // Fetch store data
+  const fetchData = useCallback(async (overrideToken?: string | null) => {
     setLoading(true);
     setError(null);
     try {
+      const activeToken = overrideToken !== undefined ? overrideToken : adminToken;
       const headers: Record<string, string> = {};
-      if (adminToken) {
-        headers['Authorization'] = `Bearer ${adminToken}`;
+      if (activeToken) {
+        headers['Authorization'] = `Bearer ${activeToken}`;
       }
 
       // Fetch settings
@@ -149,7 +442,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
 
       // Fetch products
-      const prodUrl = adminToken ? '/api/products?includeHidden=true' : '/api/products';
+      const prodUrl = activeToken ? '/api/products?includeHidden=true' : '/api/products';
       const prodRes = await fetch(prodUrl, { headers });
       if (prodRes.ok) {
         const prodData = await prodRes.json();
@@ -163,12 +456,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [adminToken]);
 
-  // Check admin session
+  // Check admin session if token exists
   useEffect(() => {
-    if (!adminToken) {
-      setIsAdmin(false);
-      return;
-    }
+    if (!adminToken) return;
     fetch('/api/admin/verify', {
       headers: { Authorization: `Bearer ${adminToken}` },
     })
@@ -182,85 +472,147 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
       })
       .catch(() => {
-        // Fallback
-        setIsAdmin(true);
+        setIsAdmin(false);
+        setAdminToken(null);
+        localStorage.removeItem('siri_admin_token');
       });
   }, [adminToken]);
 
+  // Load store data once on mount
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
-
-  // Browser back/forward & URL query sync
-  useEffect(() => {
-    const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      const page = (params.get('page') as PageType) || 'home';
-      const prodId = params.get('product');
-      const cat = params.get('category');
-      const tab = (params.get('tab') as PolicyTab) || 'privacy';
-
-      setCurrentPage(page);
-      if (prodId) setCurrentProductId(prodId);
-      if (cat) setCurrentCategorySlug(cat);
-      if (tab) setPolicyTab(tab);
-    };
-
-    // Initial URL sync on mount
-    const params = new URLSearchParams(window.location.search);
-    const page = (params.get('page') as PageType) || 'home';
-    const prodId = params.get('product');
-    const cat = params.get('category');
-    const tab = (params.get('tab') as PolicyTab) || 'privacy';
-
-    if (page !== 'home' || prodId || cat) {
-      setCurrentPage(page);
-      if (prodId) setCurrentProductId(prodId);
-      if (cat) {
-        setCurrentCategorySlug(cat);
-        setFilters((prev) => ({ ...prev, categoryId: cat }));
-      }
-      if (tab) setPolicyTab(tab);
-    }
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const navigateTo = (
-    page: PageType,
-    params?: { productId?: string; categorySlug?: string; policyTab?: PolicyTab }
-  ) => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Browser back/forward history listener (runs once on mount)
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const page = (params.get('page') as PageType) || 'home';
+        const prodId = params.get('product');
+        const cat = params.get('category');
+        const tab = (params.get('tab') as PolicyTab) || 'privacy';
 
-    const url = new URL(window.location.href);
-    url.searchParams.set('page', page);
+        setCurrentPage(page);
+        setCurrentProductId(prodId);
+        setCurrentCategorySlug(cat);
+        setPolicyTab(tab);
+        if (cat) {
+          setFilters((prev) => ({ ...prev, categoryId: cat }));
+        }
+      } catch (e) {
+        console.warn('popstate note', e);
+      }
+    };
 
-    if (params?.productId) {
-      setCurrentProductId(params.productId);
-      url.searchParams.set('product', params.productId);
-    } else {
-      url.searchParams.delete('product');
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  // Supabase auth & OAuth redirect handler (runs once on mount)
+  useEffect(() => {
+    // Check for OAuth error in URL query or hash
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const hashStr = window.location.hash.startsWith('#')
+        ? window.location.hash.substring(1)
+        : window.location.hash;
+      const hashParams = new URLSearchParams(hashStr);
+      const oauthError =
+        params.get('error_description') ||
+        params.get('error') ||
+        hashParams.get('error_description') ||
+        hashParams.get('error');
+
+      if (oauthError) {
+        showToast(`Google Sign-In: ${decodeURIComponent(oauthError)}`, 'error');
+        const cleanUrl =
+          window.location.pathname + (params.get('page') ? `?page=${params.get('page')}` : '');
+        window.history.replaceState(null, '', cleanUrl);
+      }
+    } catch (e) {
+      console.warn('OAuth URL note:', e);
     }
 
-    if (params?.categorySlug) {
-      setCurrentCategorySlug(params.categorySlug);
-      url.searchParams.set('category', params.categorySlug);
-      setFilters((prev) => ({ ...prev, categoryId: params.categorySlug || '' }));
-    } else if (page !== 'products') {
-      url.searchParams.delete('category');
-    }
+    // Supabase auth session listener
+    const sbClient = getSupabaseClient();
+    if (!sbClient) return;
 
-    if (params?.policyTab) {
-      setPolicyTab(params.policyTab);
-      url.searchParams.set('tab', params.policyTab);
-    } else {
-      url.searchParams.delete('tab');
-    }
+    let authSubscription: { unsubscribe: () => void } | null = null;
 
-    window.history.pushState({}, '', url.toString());
-  };
+    sbClient.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user && !customerUserRef.current) {
+        const u = session.user;
+        const email = (u.email || '').toLowerCase().trim();
+        const name =
+          u.user_metadata?.full_name ||
+          u.user_metadata?.name ||
+          (email ? email.split('@')[0] : 'Customer');
+        const avatarUrl = u.user_metadata?.avatar_url || u.user_metadata?.picture;
+        customerUserRef.current = {
+          id: u.id,
+          email,
+          name,
+          avatarUrl,
+          provider: 'google',
+          lastSignInAt: new Date().toISOString(),
+          loginCount: 1,
+        };
+        loginCustomerWithGoogleRef.current({
+          id: u.id,
+          email,
+          name,
+          avatarUrl,
+        });
+        if (window.location.hash || window.location.search.includes('code=')) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+    });
+
+    const { data } = sbClient.auth.onAuthStateChange(async (event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
+        const u = session.user;
+        const email = (u.email || '').toLowerCase().trim();
+        // Prevent duplicate authentication loops
+        if (customerUserRef.current && customerUserRef.current.email === email) {
+          return;
+        }
+        const name =
+          u.user_metadata?.full_name ||
+          u.user_metadata?.name ||
+          (email ? email.split('@')[0] : 'Customer');
+        const avatarUrl = u.user_metadata?.avatar_url || u.user_metadata?.picture;
+        customerUserRef.current = {
+          id: u.id,
+          email,
+          name,
+          avatarUrl,
+          provider: 'google',
+          lastSignInAt: new Date().toISOString(),
+          loginCount: 1,
+        };
+        await loginCustomerWithGoogleRef.current({
+          id: u.id,
+          email,
+          name,
+          avatarUrl,
+        });
+        if (window.location.hash || window.location.search.includes('code=')) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+    });
+    authSubscription = data.subscription;
+
+    return () => {
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
+    };
+  }, []);
 
   const updateFilter = (partial: Partial<FilterState>) => {
     setFilters((prev) => ({ ...prev, ...partial }));
@@ -283,6 +635,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setAdminToken(data.token);
         localStorage.setItem('siri_admin_token', data.token);
         setIsAdmin(true);
+        fetchData(data.token);
         showToast('Admin session unlocked successfully!', 'success');
         return true;
       } else {
@@ -299,6 +652,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setAdminToken(null);
     setIsAdmin(false);
     localStorage.removeItem('siri_admin_token');
+    fetchData(null);
     showToast('Admin logged out successfully', 'info');
     navigateTo('home');
   };
@@ -564,6 +918,20 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         updateSettings,
         uploadImage,
         refreshData: fetchData,
+        // Wishlist
+        wishlistIds,
+        wishlistCount: wishlistIds.length,
+        isInWishlist,
+        toggleWishlist,
+        removeFromWishlist,
+        clearWishlist,
+        // Customer Google Auth & Supabase
+        customerUser,
+        isCustomerLoggedIn: Boolean(customerUser),
+        intendedPage,
+        setIntendedPage,
+        loginCustomerWithGoogle,
+        logoutCustomer,
       }}
     >
       {children}

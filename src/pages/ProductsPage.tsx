@@ -10,10 +10,20 @@ import {
   ArrowUpDown,
   Tag,
   Sparkles,
+  Heart,
 } from 'lucide-react';
 
 export const ProductsPage: React.FC = () => {
-  const { products, categories, filters, updateFilter, resetFilters, settings } = useStore();
+  const {
+    products,
+    categories,
+    filters,
+    updateFilter,
+    resetFilters,
+    settings,
+    wishlistCount,
+    navigateTo,
+  } = useStore();
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   // Apply filters
@@ -102,8 +112,20 @@ export const ProductsPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Quick Sort Bar */}
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          {/* Quick Sort Bar & Wishlist shortcut */}
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            {wishlistCount > 0 && (
+              <button
+                type="button"
+                onClick={() => navigateTo('wishlist')}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                title="View your saved wishlist"
+              >
+                <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
+                <span>Wishlist ({wishlistCount})</span>
+              </button>
+            )}
+
             <button
               onClick={() => setMobileFilterOpen(true)}
               className="md:hidden flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-xs"
@@ -232,16 +254,16 @@ export const ProductsPage: React.FC = () => {
             </div>
           ) : products.length === 0 ? (
             /* Catalog is empty */
-            <div className="text-center py-20 px-6 bg-white rounded-3xl border border-slate-200/90 shadow-xs space-y-5">
-              <div className="w-20 h-20 rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100">
-                <PackageOpen className="w-10 h-10 stroke-[1.8]" />
+            <div className="text-center py-16 px-6 bg-white rounded-2xl border border-stone-200 shadow-xs space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
+                <PackageOpen className="w-8 h-8 stroke-[1.6]" />
               </div>
               <div className="space-y-1.5">
-                <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-stone-100 text-stone-700 border border-stone-200">
                   Catalog Updating
                 </span>
-                <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Products coming soon</h3>
-                <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                <h3 className="text-2xl font-serif font-bold text-stone-900 tracking-tight">Products coming soon</h3>
+                <p className="text-sm text-stone-500 max-w-md mx-auto leading-relaxed">
                   We are currently preparing our exclusive collection for SIRI. Stay tuned or reach out directly on WhatsApp for inquiries.
                 </p>
               </div>
@@ -250,7 +272,7 @@ export const ProductsPage: React.FC = () => {
                   href={`https://wa.me/${settings.whatsappNumber}?text=${encodeURIComponent('Hello SIRI! I would like to inquire about your incoming products.')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-stone-950 hover:bg-stone-850 text-white text-xs font-semibold uppercase tracking-wider shadow-xs transition-all"
                 >
                   <span>Chat with SIRI on WhatsApp</span>
                 </a>
@@ -258,9 +280,9 @@ export const ProductsPage: React.FC = () => {
             </div>
           ) : (
             /* Filter produced 0 results */
-            <div className="text-center py-16 px-4 bg-white rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                <PackageOpen className="w-8 h-8" />
+            <div className="text-center py-16 px-4 bg-white rounded-2xl border border-stone-200 shadow-xs space-y-4">
+              <div className="w-14 h-14 rounded-xl bg-stone-100 text-stone-500 flex items-center justify-center mx-auto border border-stone-200">
+                <PackageOpen className="w-7 h-7" />
               </div>
               <h3 className="text-lg font-bold text-slate-900">No matching products found</h3>
               <p className="text-sm text-slate-500 max-w-sm mx-auto">

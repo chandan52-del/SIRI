@@ -30,7 +30,7 @@ export const CategoriesPage: React.FC = () => {
             <div
               key={cat.id}
               onClick={() => navigateTo('products', { categorySlug: cat.id })}
-              className="group relative rounded-3xl overflow-hidden bg-white border border-slate-200/90 shadow-xs hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col"
+              className="group relative rounded-xl overflow-hidden bg-white border border-stone-200 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col"
             >
               <div className="relative aspect-4/3 w-full overflow-hidden bg-slate-100">
                 <img
@@ -39,7 +39,7 @@ export const CategoriesPage: React.FC = () => {
                     'https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=800&q=80'
                   }
                   alt={cat.name}
-                  className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
+                  className="w-full h-full object-cover group-hover:scale-104 transition-transform duration-300"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
 

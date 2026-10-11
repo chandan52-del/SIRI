@@ -31,10 +31,10 @@ export const HomePage: React.FC = () => {
   return (
     <div className="space-y-16 sm:space-y-24">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-stone-950 text-white rounded-3xl mx-4 sm:mx-6 lg:mx-8 mt-4 sm:mt-6 shadow-2xl border border-stone-800">
+      <section className="relative overflow-hidden bg-stone-950 text-white rounded-2xl mx-4 sm:mx-6 lg:mx-8 mt-4 sm:mt-6 shadow-sm border border-stone-800">
         <div className="absolute inset-0 bg-gradient-to-r from-stone-950 via-stone-950/85 to-stone-950/30 z-10" />
         <div
-          className="absolute inset-0 bg-cover bg-center mix-blend-overlay opacity-30 transform scale-105"
+          className="absolute inset-0 bg-cover bg-center mix-blend-overlay opacity-30 transform scale-102"
           style={{
             backgroundImage: `url('${
               settings.heroImageUrl ||
@@ -43,26 +43,26 @@ export const HomePage: React.FC = () => {
           }}
         />
 
-        <div className="relative z-20 max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 py-16 sm:py-24 lg:py-28 flex flex-col md:flex-row items-center justify-between gap-12">
-          <div className="max-w-2xl space-y-6 text-center md:text-left">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-stone-900/80 border border-stone-700/80 text-stone-200 text-xs font-bold tracking-[0.2em] uppercase">
+        <div className="relative z-20 max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 py-14 sm:py-20 lg:py-24 flex flex-col md:flex-row items-center justify-between gap-10">
+          <div className="max-w-2xl space-y-5 text-center md:text-left">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-stone-900 border border-stone-700/80 text-stone-200 text-xs font-semibold tracking-wider uppercase">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               <span>Official SIRI Brand Store</span>
             </div>
 
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-serif font-black tracking-tight leading-[1.15] text-stone-50">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold tracking-tight leading-[1.2] text-stone-50">
               {settings.heroTitle || 'Curated Elegance, Defined by You'}
             </h1>
 
-            <p className="text-base sm:text-lg text-stone-300 font-normal leading-relaxed max-w-xl">
+            <p className="text-base text-stone-300 font-normal leading-relaxed max-w-xl">
               {settings.heroSubtitle ||
                 'Discover hand-picked collections curated for elegance, everyday style, and uncompromising quality. Direct personal shopping via WhatsApp.'}
             </p>
 
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3.5">
               <button
                 onClick={() => navigateTo('products')}
-                className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-white hover:bg-stone-100 text-stone-950 font-bold text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 group cursor-pointer active:scale-98"
+                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-white hover:bg-stone-100 text-stone-950 font-semibold text-xs uppercase tracking-wider shadow-xs transition-all flex items-center justify-center gap-2 group cursor-pointer active:scale-98"
               >
                 <span>{settings.heroButtonText || 'Explore Collections'}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -72,7 +72,7 @@ export const HomePage: React.FC = () => {
                 href={whatsAppHeroUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto px-7 py-4 rounded-2xl bg-stone-900/90 hover:bg-stone-900 text-stone-100 border border-stone-700 font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2.5 shadow-md active:scale-98"
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-stone-900 hover:bg-stone-850 text-stone-100 border border-stone-700 font-semibold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs active:scale-98"
               >
                 <MessageCircle className="w-4 h-4 fill-emerald-400 text-stone-900" />
                 <span>Chat on WhatsApp</span>
@@ -124,7 +124,7 @@ export const HomePage: React.FC = () => {
               <div
                 key={cat.id}
                 onClick={() => navigateTo('products', { categorySlug: cat.id })}
-                className="group relative rounded-2xl overflow-hidden bg-stone-100 border border-stone-200 cursor-pointer shadow-2xs hover:shadow-xl transition-all duration-300"
+                className="group relative rounded-xl overflow-hidden bg-stone-100 border border-stone-200 cursor-pointer shadow-xs hover:shadow-md transition-all duration-200"
               >
                 <div className="aspect-square w-full overflow-hidden">
                   <img
@@ -133,12 +133,12 @@ export const HomePage: React.FC = () => {
                       'https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=400&q=80'
                     }
                     alt={cat.name}
-                    className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
+                    className="w-full h-full object-cover group-hover:scale-104 transition-transform duration-300"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-stone-950/20 to-transparent" />
                 </div>
                 <div className="absolute inset-x-0 bottom-0 p-3 text-center">
-                  <h3 className="text-xs sm:text-sm font-bold text-white group-hover:text-amber-200 transition-colors line-clamp-1">
+                  <h3 className="text-xs sm:text-sm font-semibold text-white group-hover:text-amber-200 transition-colors line-clamp-1">
                     {cat.name}
                   </h3>
                 </div>
@@ -151,17 +151,17 @@ export const HomePage: React.FC = () => {
       {/* When no products are yet published: Clean, attractive Empty State */}
       {publishedProducts.length === 0 ? (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white rounded-3xl p-10 sm:p-16 border border-stone-200/90 shadow-sm text-center max-w-2xl mx-auto space-y-6">
-            <div className="w-20 h-20 rounded-3xl bg-stone-100 text-stone-800 flex items-center justify-center mx-auto border border-stone-200 shadow-2xs">
-              <PackageOpen className="w-10 h-10 stroke-[1.6]" />
+          <div className="bg-white rounded-2xl p-8 sm:p-12 border border-stone-200 shadow-xs text-center max-w-xl mx-auto space-y-5">
+            <div className="w-16 h-16 rounded-2xl bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
+              <PackageOpen className="w-8 h-8 stroke-[1.6]" />
             </div>
 
-            <div className="space-y-3">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-100 text-stone-700 text-[11px] font-bold uppercase tracking-[0.2em] border border-stone-200">
+            <div className="space-y-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-stone-100 text-stone-700 text-[10px] font-semibold uppercase tracking-wider border border-stone-200">
                 <Sparkles className="w-3 h-3 text-amber-600" />
                 <span>Catalog Coming Soon</span>
               </span>
-              <h2 className="text-2xl sm:text-3xl font-serif font-extrabold text-stone-950 tracking-tight">
+              <h2 className="text-2xl font-serif font-bold text-stone-950 tracking-tight">
                 Products Coming Soon
               </h2>
               <p className="text-sm text-stone-500 max-w-md mx-auto leading-relaxed">
@@ -174,7 +174,7 @@ export const HomePage: React.FC = () => {
                 href={whatsAppHeroUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-stone-950 hover:bg-stone-800 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-stone-950/20 transition-all cursor-pointer"
+                className="w-full sm:w-auto px-5 py-3 rounded-lg bg-stone-950 hover:bg-stone-850 text-white font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
               >
                 <MessageCircle className="w-4 h-4 fill-emerald-400 text-stone-950" />
                 <span>Chat with SIRI on WhatsApp</span>
@@ -182,7 +182,7 @@ export const HomePage: React.FC = () => {
 
               <button
                 onClick={() => navigateTo('contact')}
-                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                className="w-full sm:w-auto px-5 py-3 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold text-xs uppercase tracking-wider border border-stone-200 transition-colors cursor-pointer"
               >
                 Contact Store
               </button>

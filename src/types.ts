@@ -74,6 +74,17 @@ export interface StoreSettings {
   supabaseServiceRoleKey?: string;
 }
 
+export interface CustomerUser {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+  provider: 'google';
+  lastSignInAt: string;
+  loginCount?: number;
+  createdAt?: string;
+}
+
 export type PageType =
   | 'home'
   | 'products'
@@ -82,6 +93,9 @@ export type PageType =
   | 'about'
   | 'contact'
   | 'policy'
+  | 'wishlist'
+  | 'login'
+  | 'account'
   | 'admin-login'
   | 'admin-dashboard';
 

@@ -17,7 +17,7 @@ import {
 import { getWhatsAppUrl, buildGeneralChatMessage } from '../../utils/whatsapp';
 
 export const Footer: React.FC = () => {
-  const { settings, navigateTo, isAdmin } = useStore();
+  const { settings, navigateTo, isAdmin, wishlistCount, isCustomerLoggedIn, customerUser } = useStore();
 
   const whatsAppUrl = getWhatsAppUrl(
     settings.whatsappNumber,
@@ -161,6 +161,19 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
+                  onClick={() => navigateTo('wishlist')}
+                  className="hover:text-white transition-colors cursor-pointer flex items-center gap-2"
+                >
+                  <span>My Wishlist</span>
+                  {wishlistCount > 0 && (
+                    <span className="px-1.5 py-0.2 bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] rounded-full font-bold">
+                      {wishlistCount}
+                    </span>
+                  )}
+                </button>
+              </li>
+              <li>
+                <button
                   onClick={() => navigateTo('categories')}
                   className="hover:text-white transition-colors cursor-pointer"
                 >
@@ -181,6 +194,17 @@ export const Footer: React.FC = () => {
                   className="hover:text-white transition-colors cursor-pointer"
                 >
                   Contact Desk
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('login')}
+                  className="hover:text-emerald-400 text-stone-400 transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>{isCustomerLoggedIn && customerUser ? 'My Google Account' : 'Customer Sign In'}</span>
+                  <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800/60 px-1.5 py-0.5 rounded font-sans font-semibold">
+                    Google
+                  </span>
                 </button>
               </li>
             </ul>

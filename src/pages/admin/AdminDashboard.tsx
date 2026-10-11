@@ -121,13 +121,26 @@ export const AdminDashboard: React.FC = () => {
   // Supabase SQL copied state
   const [sqlCopied, setSqlCopied] = useState(false);
   const [sqlSchema, setSqlSchema] = useState('');
+  const [customerLogins, setCustomerLogins] = useState<any[]>([]);
 
-  // Fetch Supabase schema script
+  // Fetch Supabase schema script and customer logins
   const fetchSqlSchema = async () => {
     try {
       const res = await fetch('/api/supabase/schema-sql');
       const text = await res.text();
       setSqlSchema(text);
+    } catch (err) {
+      // Fallback
+    }
+  };
+
+  const fetchCustomerLogins = async () => {
+    try {
+      const res = await fetch('/api/customer/logins');
+      if (res.ok) {
+        const data = await res.json();
+        setCustomerLogins(data || []);
+      }
     } catch (err) {
       // Fallback
     }
@@ -557,6 +570,7 @@ export const AdminDashboard: React.FC = () => {
           onClick={() => {
             setActiveTab('database');
             fetchSqlSchema();
+            fetchCustomerLogins();
           }}
           className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
             activeTab === 'database'
@@ -1273,6 +1287,77 @@ export const AdminDashboard: React.FC = () => {
                   <span>{sqlCopied ? 'Copied to Clipboard!' : 'Copy Supabase SQL Script'}</span>
                 </button>
               </div>
+            </div>
+
+            {/* Google Customer Logins Section (Stored in Supabase) */}
+            <div className="pt-4 border-t border-slate-200 space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Google Customer Logins (Supabase Table: customer_logins)
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                    {customerLogins.length} Registered
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchCustomerLogins}
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                >
+                  Refresh Customer Logins
+                </button>
+              </div>
+
+              {customerLogins.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                  No customers have logged in yet. When customers click "Sign in with Google", their details are securely stored in the Supabase database.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                  <table className="w-full text-left text-xs text-slate-700">
+                    <thead className="bg-slate-50 border-b border-slate-200 font-bold uppercase tracking-wider text-[10px] text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Customer</th>
+                        <th className="px-4 py-3">Google Email</th>
+                        <th className="px-4 py-3">Provider</th>
+                        <th className="px-4 py-3">Logins</th>
+                        <th className="px-4 py-3">Last Sign-In</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {customerLogins.map((c: any) => (
+                        <tr key={c.id} className="hover:bg-slate-50/70">
+                          <td className="px-4 py-3 flex items-center gap-2.5 font-bold text-slate-900">
+                            {c.avatarUrl ? (
+                              <img
+                                src={c.avatarUrl}
+                                alt={c.name}
+                                className="w-6 h-6 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px] font-bold">
+                                {(c.name || 'C').charAt(0)}
+                              </div>
+                            )}
+                            <span>{c.name || 'Customer'}</span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{c.email}</td>
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                              Google OAuth
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-bold text-slate-800">{c.loginCount || 1}</td>
+                          <td className="px-4 py-3 text-slate-500">
+                            {new Date(c.lastSignInAt).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* SQL Script Viewer */}

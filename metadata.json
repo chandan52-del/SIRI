@@ -1,6 +1,6 @@
 {
-  "name": "ShopExpress - Direct WhatsApp E-Commerce Store",
-  "description": "Modern, professional e-commerce store with admin product management and direct WhatsApp ordering.",
+  "name": "SIRI - Official Online Store",
+  "description": "Curated collections by SIRI. Discover fine apparel, premium accessories, secure Google sign-in, and direct WhatsApp shopping.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

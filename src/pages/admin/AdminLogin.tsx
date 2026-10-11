@@ -9,9 +9,7 @@ export const AdminLogin: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // If already logged in, redirect to dashboard
   if (isAdmin) {
-    navigateTo('admin-dashboard');
     return null;
   }
 
@@ -35,7 +33,7 @@ export const AdminLogin: React.FC = () => {
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-16 bg-[#faf9f6]/60">
-      <div className="max-w-md w-full bg-white rounded-3xl border border-stone-200/90 shadow-xl p-8 sm:p-10 space-y-6">
+      <div className="max-w-md w-full bg-white rounded-2xl border border-stone-200 shadow-md p-8 sm:p-10 space-y-6">
         <button
           onClick={() => navigateTo('home')}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-stone-900 transition-colors"
@@ -49,8 +47,8 @@ export const AdminLogin: React.FC = () => {
           <div className="inline-block tracking-[0.3em] font-serif text-3xl font-extrabold text-stone-950 pb-1 border-b border-stone-200">
             SIRI
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-800 flex items-center justify-center mx-auto border border-stone-200/80 shadow-xs mt-3">
-            <ShieldCheck className="w-6 h-6 stroke-[1.8]" />
+          <div className="w-11 h-11 rounded-xl bg-stone-100 text-stone-800 flex items-center justify-center mx-auto border border-stone-200 shadow-2xs mt-3">
+            <ShieldCheck className="w-5 h-5 stroke-[1.8]" />
           </div>
           <h1 className="text-xl font-bold text-stone-900 tracking-tight">
             Store Administrator Portal
@@ -96,7 +94,7 @@ export const AdminLogin: React.FC = () => {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3.5 px-4 bg-stone-950 hover:bg-stone-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-stone-950/20 flex items-center justify-center gap-2 active:scale-99 disabled:opacity-50 cursor-pointer"
+            className="w-full py-3.5 px-4 bg-stone-950 hover:bg-stone-850 text-white font-semibold text-xs uppercase tracking-wider rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 active:scale-99 disabled:opacity-50 cursor-pointer"
           >
             <KeyRound className="w-4 h-4" />
             <span>{submitting ? 'Verifying Access...' : 'Sign In to Dashboard'}</span>

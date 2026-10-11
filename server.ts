@@ -20,10 +20,23 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
+interface CustomerLoginRecord {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+  provider: 'google';
+  lastSignInAt: string;
+  loginCount: number;
+  createdAt: string;
+  metadata?: Record<string, any>;
+}
+
 interface DatabaseSchema {
   settings: Record<string, any>;
   categories: Array<Record<string, any>>;
   products: Array<Record<string, any>>;
+  customerLogins?: Array<CustomerLoginRecord>;
 }
 
 // Password hashing utility using PBKDF2 with SHA-512
@@ -50,6 +63,9 @@ function readDb(): DatabaseSchema {
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
+      if (!parsed.customerLogins) {
+        parsed.customerLogins = [];
+      }
       return parsed;
     }
   } catch (err) {
@@ -88,6 +104,7 @@ function readDb(): DatabaseSchema {
     },
     categories: [],
     products: [],
+    customerLogins: [],
   };
 }
 
@@ -155,6 +172,9 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+  // In-memory rate limiting map for admin login protection
+  const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
+
   // Static files for user-uploaded product images
   app.use('/uploads', express.static(UPLOADS_DIR));
 
@@ -165,8 +185,21 @@ async function startServer() {
     res.json({ status: 'ok', brand: 'SIRI', time: new Date().toISOString() });
   });
 
-  // Admin Authentication: Login
+  // Admin Authentication: Login (with rate limiting and brute force protection)
   app.post('/api/admin/login', (req, res) => {
+    const clientIp = (req.headers['x-forwarded-for'] as string) || req.ip || 'unknown';
+    const now = Date.now();
+    const attempts = loginAttempts.get(clientIp);
+
+    if (attempts && attempts.lockedUntil > now) {
+      const waitSeconds = Math.ceil((attempts.lockedUntil - now) / 1000);
+      res.status(429).json({
+        success: false,
+        message: `Too many unsuccessful login attempts. Please wait ${waitSeconds} seconds before trying again.`,
+      });
+      return;
+    }
+
     const { password } = req.body;
     if (!password) {
       res.status(400).json({ success: false, message: 'Password is required' });
@@ -184,6 +217,7 @@ async function startServer() {
     }
 
     if (valid) {
+      loginAttempts.delete(clientIp);
       const token = 'siri_adm_' + crypto.randomBytes(32).toString('hex');
       activeAdminTokens.add(token);
       saveSessions(activeAdminTokens);
@@ -193,9 +227,15 @@ async function startServer() {
         message: 'SIRI Administrator session established',
       });
     } else {
+      const currentCount = (attempts ? attempts.count : 0) + 1;
+      const lockedUntil = currentCount >= 5 ? now + 5 * 60 * 1000 : 0;
+      loginAttempts.set(clientIp, { count: currentCount, lockedUntil });
+
       res.status(401).json({
         success: false,
-        message: 'Invalid administrator password. Please verify your credentials.',
+        message: currentCount >= 5
+          ? 'Too many failed login attempts. Access temporarily locked for 5 minutes.'
+          : 'Invalid administrator password. Please verify your credentials.',
       });
     }
   });
@@ -249,6 +289,7 @@ async function startServer() {
     // Never expose security credentials or secret keys to client
     delete settings.adminPasswordHash;
     delete settings.adminPasswordSalt;
+    delete settings.supabaseUrl;
     delete settings.supabaseAnonKey;
     delete settings.supabaseServiceRoleKey;
     res.json(settings);
@@ -271,7 +312,10 @@ async function startServer() {
       adminPasswordSalt: preservedSalt,
     };
     writeDb(db);
-    res.json({ success: true, settings: db.settings });
+    const sanitized = { ...db.settings };
+    delete sanitized.adminPasswordHash;
+    delete sanitized.adminPasswordSalt;
+    res.json({ success: true, settings: sanitized });
   });
 
   // Categories: Get all
@@ -594,8 +638,12 @@ async function startServer() {
     }
   });
 
-  // Supabase migration script generator for production hosting
+  // Supabase migration script generator for production hosting (Admin only)
   app.get('/api/supabase/schema-sql', (req, res) => {
+    if (!isAdmin(req)) {
+      res.status(403).json({ error: 'Unauthorized: Administrator access required.' });
+      return;
+    }
     const sql = `-- ========================================================
 -- Supabase Schema for SIRI Official E-Commerce Store
 -- Execute this script inside your Supabase Project SQL Editor
@@ -663,12 +711,26 @@ CREATE TABLE IF NOT EXISTS public.store_settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. Enable Row Level Security (RLS)
+-- 4. Create customer_logins table for Google Authentication (Free Supabase Storage)
+CREATE TABLE IF NOT EXISTS public.customer_logins (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    full_name TEXT,
+    avatar_url TEXT,
+    provider TEXT DEFAULT 'google',
+    last_sign_in TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    login_count INTEGER DEFAULT 1,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 5. Enable Row Level Security (RLS)
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.store_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customer_logins ENABLE ROW LEVEL SECURITY;
 
--- 5. Public read policies (Customers can only view published items)
+-- 6. Public read policies (Customers can only view published items)
 CREATE POLICY "Public can view published products" ON public.products
     FOR SELECT USING (status = 'published');
 
@@ -678,7 +740,14 @@ CREATE POLICY "Public can view categories" ON public.categories
 CREATE POLICY "Public can view store settings" ON public.store_settings
     FOR SELECT USING (true);
 
--- 6. Storage bucket for high-res product photos
+-- 7. Customer Logins Policies (Allow Google sign-in users to upsert their profile)
+CREATE POLICY "Public upsert customer_logins" ON public.customer_logins
+    FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Public view customer_logins" ON public.customer_logins
+    FOR SELECT USING (true);
+
+-- 8. Storage bucket for high-res product photos
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('product-images', 'product-images', true)
 ON CONFLICT (id) DO NOTHING;
@@ -688,6 +757,124 @@ CREATE POLICY "Public read product-images" ON storage.objects
 `;
     res.setHeader('Content-Type', 'text/plain');
     res.send(sql);
+  });
+
+  // --- CUSTOMER GOOGLE LOGIN & SUPABASE SYNC ENDPOINTS ---
+
+  // Record Customer Login (Google Sign-In)
+  app.post('/api/customer/login-google', async (req, res) => {
+    const { id, email, name, avatarUrl, metadata } = req.body;
+    if (!email || !id) {
+      res.status(400).json({ error: 'Customer Google ID and Email are required' });
+      return;
+    }
+
+    const db = readDb();
+    if (!db.customerLogins) {
+      db.customerLogins = [];
+    }
+
+    const now = new Date().toISOString();
+    const existingIndex = db.customerLogins.findIndex(
+      (c) => c.id === id || c.email.toLowerCase() === email.toLowerCase()
+    );
+
+    let customerRecord: CustomerLoginRecord;
+    if (existingIndex >= 0) {
+      const existing = db.customerLogins[existingIndex];
+      customerRecord = {
+        ...existing,
+        id,
+        email,
+        name: name || existing.name || email.split('@')[0],
+        avatarUrl: avatarUrl || existing.avatarUrl,
+        provider: 'google',
+        lastSignInAt: now,
+        loginCount: (existing.loginCount || 1) + 1,
+        metadata: { ...existing.metadata, ...metadata, lastIp: req.ip },
+      };
+      db.customerLogins[existingIndex] = customerRecord;
+    } else {
+      customerRecord = {
+        id,
+        email,
+        name: name || email.split('@')[0],
+        avatarUrl: avatarUrl || undefined,
+        provider: 'google',
+        lastSignInAt: now,
+        loginCount: 1,
+        createdAt: now,
+        metadata: { ...metadata, registeredIp: req.ip },
+      };
+      db.customerLogins.push(customerRecord);
+    }
+
+    writeDb(db);
+
+    // Also attempt server-side Supabase sync if credentials exist
+    let supabaseSynced = false;
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+    if (supabaseUrl && supabaseKey) {
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        const { error } = await supabase.from('customer_logins').upsert({
+          id: customerRecord.id,
+          email: customerRecord.email,
+          full_name: customerRecord.name,
+          avatar_url: customerRecord.avatarUrl || null,
+          provider: 'google',
+          last_sign_in: customerRecord.lastSignInAt,
+          login_count: customerRecord.loginCount,
+          metadata: customerRecord.metadata || {},
+        });
+        if (!error) {
+          supabaseSynced = true;
+        } else {
+          console.warn('[Server Supabase Sync] Table notice:', error.message);
+        }
+      } catch (sbErr: any) {
+        console.warn('[Server Supabase Sync] Failed:', sbErr?.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      user: customerRecord,
+      supabaseSynced,
+      message: 'Google login recorded successfully in database',
+    });
+  });
+
+  // Get Customer Logins List (Authorized Admin only - protects customer privacy)
+  app.get('/api/customer/logins', (req, res) => {
+    if (!isAdmin(req)) {
+      res.status(403).json({ error: 'Unauthorized: Administrator access required.' });
+      return;
+    }
+    const db = readDb();
+    res.json(db.customerLogins || []);
+  });
+
+  // Supabase Connection Status (Authorized Admin only)
+  app.get('/api/supabase/status', (req, res) => {
+    if (!isAdmin(req)) {
+      res.status(403).json({ error: 'Unauthorized: Administrator access required.' });
+      return;
+    }
+    const db = readDb();
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+    const hasKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY);
+    const customerCount = db.customerLogins?.length || 0;
+
+    res.json({
+      configured: Boolean(supabaseUrl && hasKey),
+      supabaseUrl: supabaseUrl ? supabaseUrl.replace(/\.co.*/, '.co') : null,
+      customerLoginsRecorded: customerCount,
+      databaseType: 'Supabase PostgreSQL + High-speed Local Persistence',
+    });
   });
 
   // Setup Vite middleware for local development or static build for production

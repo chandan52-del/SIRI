@@ -28,7 +28,7 @@ export const AnnouncementBar: React.FC = () => {
             href={chatUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 transition-colors bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-500/30"
+            className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 transition-colors bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/30 text-[11px]"
           >
             <MessageCircle className="w-3.5 h-3.5 fill-current" />
             <span>Order via WhatsApp</span>

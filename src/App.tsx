@@ -14,21 +14,34 @@ import { CategoriesPage } from './pages/CategoriesPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 import { PolicyPage } from './pages/PolicyPage';
+import { WishlistPage } from './pages/WishlistPage';
+import { CustomerLoginPage } from './pages/CustomerLoginPage';
 import { AdminLogin } from './pages/admin/AdminLogin';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { Loader2 } from 'lucide-react';
 
 const StoreContent: React.FC = () => {
-  const { currentPage, loading } = useStore();
+  const { currentPage, isCustomerLoggedIn, isAdmin, loading, currentProductId } = useStore();
 
   const renderPage = () => {
+    // 1. Separate Admin Portal: Authorized administrator can access Admin Login & Dashboard
+    if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') {
+      return isAdmin ? <AdminDashboard /> : <AdminLogin />;
+    }
+
+    // 2. Customer Protection Guard: Require Google sign-in before accessing shopping website
+    if (!isCustomerLoggedIn) {
+      return <CustomerLoginPage />;
+    }
+
+    // 3. Authenticated Customer Pages: Full Shopping Experience
     switch (currentPage) {
       case 'home':
         return <HomePage />;
       case 'products':
         return <ProductsPage />;
       case 'product-detail':
-        return <ProductDetailPage />;
+        return <ProductDetailPage key={currentProductId || 'product-detail'} />;
       case 'categories':
         return <CategoriesPage />;
       case 'about':
@@ -37,19 +50,23 @@ const StoreContent: React.FC = () => {
         return <ContactPage />;
       case 'policy':
         return <PolicyPage />;
-      case 'admin-login':
-        return <AdminLogin />;
-      case 'admin-dashboard':
-        return <AdminDashboard />;
+      case 'wishlist':
+        return <WishlistPage />;
+      case 'login':
+      case 'account':
+        return <CustomerLoginPage />;
       default:
         return <HomePage />;
     }
   };
 
+  const isAuthPage = !isCustomerLoggedIn && currentPage !== 'admin-login' && currentPage !== 'admin-dashboard';
+  const isAdminPage = currentPage === 'admin-login' || currentPage === 'admin-dashboard';
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-emerald-500 selection:text-white font-sans">
-      <AnnouncementBar />
-      <Navbar />
+    <div className="min-h-screen flex flex-col bg-[#faf9f6] text-stone-900 selection:bg-stone-900 selection:text-white font-sans">
+      {!isAuthPage && !isAdminPage && <AnnouncementBar />}
+      {!isAuthPage && !isAdminPage && <Navbar />}
 
       <main className="flex-1">
         {loading && (
@@ -60,8 +77,8 @@ const StoreContent: React.FC = () => {
         {renderPage()}
       </main>
 
-      <Footer />
-      <FloatingWhatsApp />
+      {!isAuthPage && !isAdminPage && <Footer />}
+      {!isAuthPage && !isAdminPage && <FloatingWhatsApp />}
       <ToastContainer />
     </div>
   );

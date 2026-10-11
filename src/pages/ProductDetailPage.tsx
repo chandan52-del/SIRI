@@ -15,6 +15,7 @@ import {
   Plus,
   ArrowLeft,
   Sparkles,
+  Heart,
 } from 'lucide-react';
 import {
   getWhatsAppUrl,
@@ -23,28 +24,42 @@ import {
 } from '../utils/whatsapp';
 
 export const ProductDetailPage: React.FC = () => {
-  const { products, currentProductId, settings, navigateTo, showToast } = useStore();
+  const {
+    products,
+    currentProductId,
+    settings,
+    navigateTo,
+    showToast,
+    isInWishlist,
+    toggleWishlist,
+  } = useStore();
 
   const product = products.find((p) => p.id === currentProductId || p.slug === currentProductId);
 
   // Fallback to first product if none found
   const activeProduct = product || products[0];
+  const inWishlist = activeProduct ? isInWishlist(activeProduct.id) : false;
 
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
-  const [selectedSize, setSelectedSize] = useState<string>('');
-  const [selectedColor, setSelectedColor] = useState<string>('');
+  const [selectedSize, setSelectedSize] = useState<string>(() => activeProduct?.sizes?.[0] || '');
+  const [selectedColor, setSelectedColor] = useState<string>(() => activeProduct?.colors?.[0]?.name || '');
   const [activeTab, setActiveTab] = useState<'desc' | 'specs' | 'features'>('desc');
+
+  const lastInitIdRef = React.useRef<string | undefined>(activeProduct?.id);
+
+  const activeProductId = activeProduct?.id;
 
   // Initialize selected variations when product changes
   useEffect(() => {
-    if (activeProduct) {
+    if (activeProduct && activeProduct.id !== lastInitIdRef.current) {
+      lastInitIdRef.current = activeProduct.id;
       setSelectedImageIndex(0);
       setQuantity(1);
       setSelectedSize(activeProduct.sizes?.[0] || '');
       setSelectedColor(activeProduct.colors?.[0]?.name || '');
     }
-  }, [activeProduct?.id]);
+  }, [activeProductId]);
 
   if (!activeProduct) {
     return (
@@ -76,30 +91,23 @@ export const ProductDetailPage: React.FC = () => {
   // Build product URL
   const productUrl = `${window.location.origin}/?page=product-detail&product=${activeProduct.id}`;
 
-  // WhatsApp Order Handler
-  const handleOrderWhatsApp = () => {
-    const orderMsg = buildWhatsAppOrderMessage(activeProduct, {
-      quantity,
-      selectedSize,
-      selectedColor,
-      productUrl,
-      currencySymbol: settings.currencySymbol || '₹',
-      greeting: settings.whatsappPrefillGreeting,
-    });
-    const url = getWhatsAppUrl(settings.whatsappNumber, orderMsg);
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
+  // WhatsApp URLs
+  const orderMsg = buildWhatsAppOrderMessage(activeProduct, {
+    quantity,
+    selectedSize,
+    selectedColor,
+    productUrl,
+    currencySymbol: settings.currencySymbol || '₹',
+    greeting: settings.whatsappPrefillGreeting,
+  });
+  const orderWhatsAppUrl = getWhatsAppUrl(settings.whatsappNumber, orderMsg);
 
-  // WhatsApp Inquiry Handler
-  const handleInquiryWhatsApp = () => {
-    const inquiryMsg = buildWhatsAppInquiryMessage(
-      activeProduct,
-      settings.currencySymbol || '₹',
-      productUrl
-    );
-    const url = getWhatsAppUrl(settings.whatsappNumber, inquiryMsg);
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
+  const inquiryMsg = buildWhatsAppInquiryMessage(
+    activeProduct,
+    settings.currencySymbol || '₹',
+    productUrl
+  );
+  const inquiryWhatsAppUrl = getWhatsAppUrl(settings.whatsappNumber, inquiryMsg);
 
   // Share Product Link
   const handleShare = async () => {
@@ -160,31 +168,50 @@ export const ProductDetailPage: React.FC = () => {
       </div>
 
       {/* Main Product Showcase Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 bg-white rounded-2xl p-6 sm:p-8 border border-stone-200 shadow-xs">
         {/* Left Column: Image Gallery (5 cols on lg) */}
         <div className="lg:col-span-5 space-y-4">
           {/* Main Large Image Container */}
-          <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-slate-100 border border-slate-200/60 shadow-inner group">
+          <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-stone-100 border border-stone-200 group">
             <img
               src={images[selectedImageIndex]}
               alt={activeProduct.name}
-              className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+              className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-103"
             />
 
             {/* Badges */}
-            <div className="absolute top-4 left-4 flex flex-col gap-2">
+            <div className="absolute top-3 left-3 flex flex-col gap-1.5">
               {discountPercent && (
-                <span className="px-3 py-1 rounded-full text-xs font-black tracking-wide bg-rose-600 text-white shadow-md">
+                <span className="px-2.5 py-1 rounded-md text-xs font-bold tracking-wide bg-stone-900 text-white">
                   {discountPercent}% OFF
                 </span>
               )}
               {activeProduct.isTrending && (
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500 text-white shadow-md flex items-center gap-1">
+                <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-amber-400 text-stone-950 flex items-center gap-1">
                   <Sparkles className="w-3 h-3 fill-current" />
                   <span>Trending</span>
                 </span>
               )}
             </div>
+
+            {/* Wishlist Heart on Large Product Photo */}
+            <button
+              type="button"
+              onClick={() => toggleWishlist(activeProduct.id)}
+              aria-label={inWishlist ? 'Remove from wishlist' : 'Save to wishlist'}
+              title={inWishlist ? 'Remove from Wishlist' : 'Save to Wishlist'}
+              className={`absolute top-4 right-4 z-10 w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md ${
+                inWishlist
+                  ? 'bg-rose-50 text-rose-600 ring-2 ring-rose-400/60 scale-105 hover:bg-rose-100 hover:scale-110 shadow-rose-500/20'
+                  : 'bg-white/90 text-stone-700 hover:text-rose-600 hover:bg-white hover:scale-110 backdrop-blur-xs'
+              }`}
+            >
+              <Heart
+                className={`w-5 h-5 transition-transform duration-200 ${
+                  inWishlist ? 'fill-rose-500 text-rose-500 scale-110' : ''
+                }`}
+              />
+            </button>
 
             {isOutOfStock && (
               <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center">
@@ -223,21 +250,41 @@ export const ProductDetailPage: React.FC = () => {
         {/* Right Column: Product Information & Buying Actions (7 cols on lg) */}
         <div className="lg:col-span-7 flex flex-col justify-between space-y-6">
           <div className="space-y-4">
-            {/* Category tag & Share button */}
-            <div className="flex items-center justify-between">
+            {/* Category tag, Wishlist & Share buttons */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
                 {activeProduct.categoryName || 'General'}
               </span>
 
-              <button
-                type="button"
-                onClick={handleShare}
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-emerald-600 p-2 rounded-xl hover:bg-slate-100 transition-colors"
-                title="Share this product"
-              >
-                <Share2 className="w-4 h-4" />
-                <span>Share</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleWishlist(activeProduct.id)}
+                  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-all cursor-pointer border ${
+                    inWishlist
+                      ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 ring-1 ring-rose-300'
+                      : 'bg-white border-stone-200 text-stone-700 hover:border-stone-300 hover:text-stone-900 shadow-2xs'
+                  }`}
+                  title={inWishlist ? 'Remove from Wishlist' : 'Save to Wishlist'}
+                >
+                  <Heart
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      inWishlist ? 'fill-rose-500 text-rose-500 scale-110' : ''
+                    }`}
+                  />
+                  <span>{inWishlist ? 'Wishlisted' : 'Save to Wishlist'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 px-3 py-2 rounded-xl bg-white border border-stone-200 hover:border-stone-300 transition-colors shadow-2xs cursor-pointer"
+                  title="Share this product"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Share</span>
+                </button>
+              </div>
             </div>
 
             {/* Product Title */}
@@ -394,29 +441,33 @@ export const ProductDetailPage: React.FC = () => {
           {/* Action Buttons: WhatsApp Ordering */}
           <div className="pt-6 border-t border-stone-100 space-y-3">
             {/* Primary Order on WhatsApp Button */}
-            <button
-              type="button"
-              onClick={handleOrderWhatsApp}
-              disabled={isOutOfStock}
-              className={`w-full py-4 px-6 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all duration-300 shadow-xl ${
-                isOutOfStock
-                  ? 'bg-stone-200 text-stone-400 cursor-not-allowed shadow-none'
-                  : 'bg-stone-950 hover:bg-stone-800 text-white shadow-stone-950/20 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer'
-              }`}
-            >
-              <MessageCircle className="w-5 h-5 fill-emerald-400 text-stone-950 shrink-0" />
-              <span>Order on WhatsApp (Instant Personal Confirmation)</span>
-            </button>
+            {isOutOfStock ? (
+              <div className="w-full py-3.5 px-6 rounded-xl font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2.5 bg-stone-100 text-stone-400 cursor-not-allowed border border-stone-200">
+                <MessageCircle className="w-4 h-4 text-stone-400 shrink-0" />
+                <span>Currently Out of Stock</span>
+              </div>
+            ) : (
+              <a
+                href={orderWhatsAppUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3.5 px-6 rounded-xl font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all shadow-xs hover:shadow bg-stone-950 hover:bg-stone-850 text-white cursor-pointer active:scale-99"
+              >
+                <MessageCircle className="w-4 h-4 fill-emerald-400 text-stone-950 shrink-0" />
+                <span>Order on WhatsApp (Instant Confirmation)</span>
+              </a>
+            )}
 
             {/* Secondary Inquire on WhatsApp Button */}
-            <button
-              type="button"
-              onClick={handleInquiryWhatsApp}
-              className="w-full py-3.5 px-6 rounded-2xl font-bold text-xs uppercase tracking-wider text-stone-800 hover:text-stone-950 bg-stone-100 hover:bg-stone-200 border border-stone-200 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            <a
+              href={inquiryWhatsAppUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3 px-6 rounded-xl font-semibold text-xs uppercase tracking-wider text-stone-800 hover:text-stone-950 bg-stone-100 hover:bg-stone-200 border border-stone-200 transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               <HelpCircle className="w-4 h-4 text-stone-700" />
               <span>Ask a Question on WhatsApp</span>
-            </button>
+            </a>
 
             {/* Shopping Reassurances */}
             <div className="grid grid-cols-3 gap-2 pt-3 text-center text-[11px] text-slate-500 font-medium">

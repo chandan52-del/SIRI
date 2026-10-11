@@ -1,7 +1,7 @@
 import React from 'react';
 import { Product } from '../../types';
 import { useStore } from '../../context/StoreContext';
-import { MessageCircle, Eye, Sparkles } from 'lucide-react';
+import { MessageCircle, Eye, Sparkles, Heart } from 'lucide-react';
 import { getWhatsAppUrl, buildWhatsAppOrderMessage } from '../../utils/whatsapp';
 
 interface ProductCardProps {
@@ -9,7 +9,8 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const { settings, navigateTo } = useStore();
+  const { settings, navigateTo, isInWishlist, toggleWishlist } = useStore();
+  const isWishlisted = isInWishlist(product.id);
 
   const primaryImage =
     product.images && product.images.length > 0
@@ -46,7 +47,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   return (
     <div
       onClick={() => navigateTo('product-detail', { productId: product.id })}
-      className="group relative bg-white rounded-2xl border border-stone-200/90 shadow-2xs hover:shadow-xl hover:border-stone-300 transition-all duration-300 flex flex-col overflow-hidden cursor-pointer"
+      className="group relative bg-white rounded-xl border border-stone-200 hover:border-stone-300 hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden cursor-pointer"
     >
       {/* Product Image Box with 4:5 Aspect Ratio */}
       <div className="relative aspect-[4/5] w-full overflow-hidden bg-stone-100">
@@ -54,7 +55,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           src={primaryImage}
           alt={product.name}
           loading="lazy"
-          className={`h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-104 ${
+          className={`h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-102 ${
             secondaryImage ? 'group-hover:opacity-0 transition-opacity duration-300' : ''
           }`}
         />
@@ -63,29 +64,51 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             src={secondaryImage}
             alt={`${product.name} alternate view`}
             loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover object-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 scale-100 group-hover:scale-104"
+            className="absolute inset-0 h-full w-full object-cover object-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 scale-100 group-hover:scale-102"
           />
         )}
 
         {/* Badges on Top Left */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
           {discountPercent && (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-black tracking-wide bg-stone-950 text-white shadow-xs">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold tracking-wide bg-stone-900 text-white">
               {discountPercent}% OFF
             </span>
           )}
           {product.isFeatured && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-stone-950 shadow-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-400 text-stone-950">
               <Sparkles className="w-3 h-3 fill-stone-950" />
               <span>Featured</span>
             </span>
           )}
         </div>
 
+        {/* Wishlist Heart Button on Top Right */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleWishlist(product.id);
+          }}
+          aria-label={isWishlisted ? 'Remove from wishlist' : 'Save to wishlist'}
+          title={isWishlisted ? 'Remove from Wishlist' : 'Save to Wishlist'}
+          className={`absolute top-3 right-3 z-20 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-sm ${
+            isWishlisted
+              ? 'bg-rose-50 text-rose-600 ring-2 ring-rose-400/70 scale-105 hover:bg-rose-100 hover:scale-110 shadow-rose-500/20'
+              : 'bg-white/90 text-stone-700 hover:text-rose-600 hover:bg-white hover:scale-110 backdrop-blur-xs'
+          }`}
+        >
+          <Heart
+            className={`w-4 h-4 transition-transform duration-200 ${
+              isWishlisted ? 'fill-rose-500 text-rose-500 scale-110' : ''
+            }`}
+          />
+        </button>
+
         {/* Out of Stock Overlay */}
         {isOutOfStock && (
-          <div className="absolute inset-0 bg-stone-950/70 backdrop-blur-2xs flex items-center justify-center z-20">
-            <span className="bg-white text-stone-950 px-3.5 py-1.5 rounded-full text-xs font-black tracking-widest uppercase shadow-md">
+          <div className="absolute inset-0 bg-stone-950/70 flex items-center justify-center z-20">
+            <span className="bg-white text-stone-950 px-3 py-1 rounded-md text-xs font-bold tracking-wider uppercase">
               Out of Stock
             </span>
           </div>
@@ -99,7 +122,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               e.stopPropagation();
               navigateTo('product-detail', { productId: product.id });
             }}
-            className="w-full py-2.5 px-4 rounded-xl bg-stone-950/90 hover:bg-stone-950 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 backdrop-blur-xs shadow-md transition-all cursor-pointer"
+            className="w-full py-2 px-3 rounded-lg bg-stone-900/90 hover:bg-stone-900 text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>View Details</span>
@@ -173,7 +196,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             type="button"
             onClick={handleQuickWhatsAppOrder}
             disabled={isOutOfStock}
-            className={`p-2.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
               isOutOfStock
                 ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
                 : 'bg-stone-950 hover:bg-stone-800 text-white shadow-xs active:scale-95'
